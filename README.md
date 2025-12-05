@@ -1,40 +1,31 @@
-<<<<<<< HEAD
-# Multi-Agent WW2 Tutor (CrewAI + Groq)
+# 🎖️ Multi-Agent WW2 Tutor (CrewAI + OpenAI)
 
-Basic example project:
+Een intelligente geschiedenis-assistent die gebruikmaakt van AI-agenten om vragen over de Tweede Wereldoorlog te beantwoorden.
 
-- CrewAI for multi-agent orchestration
-- Groq LLM as the backend
-- Simple WW2 notes as knowledge base
-- A `search_history` tool used by a ResearchAgent
-- A TutorAgent that explains things to the user
+Dit project gebruikt:
+- **CrewAI** voor de orchestratie van meerdere agenten (Researcher & Tutor).
+- **OpenAI (GPT-4o-mini)** als de backend LLM.
+- Een lokale tekstbasis (`ww2_history_notes.txt`) als kennisbron.
+- **Streamlit** voor een gebruiksvriendelijke webinterface.
 
-## Quickstart
-
-```bash
-cd crew_groq_ww2_assistant
-python -m venv .venv
-source .venv/bin/activate  # On Windows use: .venv\Scripts\activate
-
-pip install -r requirements.txt
-
-cp .env.example .env
-# edit .env and put your real Groq API key
-
-python main.py
-```
-
-Then ask things like:
-
-- Explain the causes of World War II
-- What was D-Day?
-- What were the Axis and the Allies?
-=======
-🎖️ World War 2 Assistent
-
-
-👥 Team:
+## 👥 Team
 - Natan Wojtowicz
 - Tuur Mentens
 - Tijl Cleynhens
->>>>>>> 7e8ac4cf1bbb8e5e761367016c952d811f4f0bdc
+
+## 🚀 Quickstart
+
+### 1. Installatie
+
+Zorg dat je Python geïnstalleerd hebt en voer de volgende commando's uit in je terminal:
+
+```bash
+# Ga naar de projectmap
+cd NLP_Machine_Learning
+
+# Maak een virtual environment aan (optioneel maar aanbevolen)
+python -m venv .venv
+source .venv/bin/activate  # Op Windows gebruik: .venv\Scripts\activate
+
+# Installeer de vereiste packages
+pip install -r requirements.txt
