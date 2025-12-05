@@ -1,9 +1,7 @@
 🎖️ World War 2 Assistent
 
 
-👥 Team
-Dit project is gerealiseerd door:
-
+👥 Team:
 - Natan Wojtowicz
 - Tuur Mentens
 - Tijl Cleynhens
