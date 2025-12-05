@@ -14,7 +14,7 @@ def main():
 
     print("Initializing LLM and agents (CrewAI + Groq)...")
     llm = build_llm()
-    tutor_agent, research_agent = build_agents(llm)
+    tutor_agent, research_agent, quiz_agent = build_agents(llm)
 
     print("\nHistory Tutor (World War II)")
     print("Type your question, or 'quit' to exit.\n")
@@ -35,7 +35,7 @@ def main():
 
         print("\n[Thinking... please wait]\n")
         try:
-            answer = answer_question(user_input, tutor_agent, research_agent)
+            answer = answer_question(user_input, tutor_agent, research_agent, quiz_agent)
         except Exception as e:
             print(f"[ERROR] Something went wrong: {e}")
             continue

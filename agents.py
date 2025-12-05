@@ -1,7 +1,8 @@
-from typing import Tuple, Optional
+from typing import Tuple, Optional, Union
 
 from crewai import Agent, Task, Crew, Process, LLM
 from tools.history_tool import search_history
+from tools.serpapi_tool import search_online
 
 
 def build_llm() -> LLM:
@@ -17,24 +18,26 @@ def build_llm() -> LLM:
     return llm
 
 
-def build_agents(llm: LLM) -> Tuple[Agent, Agent]:
+def build_agents(llm: LLM) -> Tuple[Agent, Agent, Agent]:
     """
-    Create the TutorAgent and ResearchAgent.
+    Create the TutorAgent, ResearchAgent, and QuizAgent.
     """
     research_agent = Agent(
         name="ResearchAgent",
         role="WW2 Researcher",
         goal=(
-            "Look up accurate information about World War II, its causes, key events, "
-            "major powers, and consequences, and summarize the key facts for another agent."
+            "Efficiently find accurate information about World War II using available tools. "
+            "Prioritize local history notes first, only use online search when necessary."
         ),
         backstory=(
             "You are a careful historian specializing in World War II. "
-            "You search trusted course notes (via tools) and produce concise, factual summaries."
+            "You search trusted course notes first, and only use online resources when "
+            "local information is insufficient. You are efficient and avoid unnecessary searches."
         ),
-        tools=[search_history],  # our custom doc-retrieval tool
+        tools=[search_history, search_online],
         llm=llm,
         verbose=True,
+        max_iter=3,  # Limit iterations to reduce API calls
     )
 
     tutor_agent = Agent(
@@ -50,27 +53,42 @@ def build_agents(llm: LLM) -> Tuple[Agent, Agent]:
         ),
         llm=llm,
         verbose=True,
+        max_iter=2,  # Limit iterations for efficiency
     )
 
-    return tutor_agent, research_agent
+    quiz_agent = Agent(
+        name="QuizAgent",
+        role="Quiz Master",
+        goal=(
+            "Create engaging and educational quizzes about World War II topics "
+            "based on factual information provided by the researcher."
+        ),
+        backstory=(
+            "You are an experienced educator who creates challenging yet fair multiple-choice questions. "
+            "You ensure questions test understanding, not just memorization, and provide clear, "
+            "unambiguous answer options with one clearly correct answer."
+        ),
+        llm=llm,
+        verbose=True,
+        max_iter=2,  # Limit iterations for efficiency
+    )
+
+    return tutor_agent, research_agent, quiz_agent
 
 
 def answer_question(
     question: str,
     tutor_agent: Agent,
     research_agent: Agent,
+    quiz_agent: Agent,
     history: Optional[str] = None,
     mode: str = "Regular answer",
 ) -> str:
     """
-    Run a two-task crew to answer a single user question.
+    Run an efficient crew to answer a single user question.
 
-    - ResearchAgent uses the history tool and summarizes key facts.
-    - TutorAgent uses those facts to produce either:
-      - a regular answer
-      - a summary
-      - an explanation
-      - a quiz
+    - ResearchAgent uses tools efficiently (local first, online if needed)
+    - TutorAgent or QuizAgent produces the final output based on mode
 
     history: a short text representation of the recent conversation.
     mode: one of ["Regular answer", "Summary", "Explanation", "Quiz"].
@@ -81,62 +99,77 @@ def answer_question(
     if history:
         context_part = f"Conversation so far:\n{history}\n\n"
 
-    # ---- Research task ----
+    # ---- Research task (optimized) ----
     research_task = Task(
         description=(
             context_part +
-            "Use the available tools to research the student's question: "
-            f"'{question}'. Focus on accurate World War II facts, key events, causes, and consequences. "
-            "Summarize your findings in bullet points. Maximum 8 bullets, each under 25 words."
+            "Research the question efficiently: "
+            f"'{question}'. "
+            "IMPORTANT: First check local history notes. Only use online search if local notes "
+            "don't provide sufficient information. "
+            "Summarize findings in 5-6 concise bullet points (max 20 words each)."
         ),
         expected_output=(
-            "A concise bullet-point summary of the most important factual information "
-            "relevant to the question."
+            "A concise bullet-point summary (5-6 points) with the most relevant facts."
         ),
         agent=research_agent,
     )
 
-    # ---- Tutor behavior depends on mode ----
-    if mode == "Summary":
-        tutor_goal = (
-            "Using the researcher's summary, provide a short summary of the topic. "
-            "Highlight only the most important points. Aim for 5–7 concise bullet points."
+    # ---- Choose the right agent based on mode ----
+    if mode == "Quiz":
+        # Use dedicated QuizAgent
+        output_task = Task(
+            description=(
+                context_part +
+                "Using the researcher's summary, create an educational quiz about the topic. "
+                "Generate 5 multiple-choice questions with 4 options each (A, B, C, D). "
+                "Ensure questions are clear and test understanding. "
+                f"Topic: '{question}'. "
+                "Format: List questions 1-5, then provide answers separately at the end."
+            ),
+            expected_output=(
+                "5 multiple-choice questions with 4 options each, followed by correct answers."
+            ),
+            agent=quiz_agent,
         )
-    elif mode == "Explanation":
-        tutor_goal = (
-            "Using the researcher's summary, explain the topic step by step as if to a beginner. "
-            "Use simple language, give context, and define any difficult terms."
-        )
-    elif mode == "Quiz":
-        tutor_goal = (
-            "Using the researcher's summary, create a quiz about the topic. "
-            "Generate 5 multiple-choice questions with 4 options each (A, B, C, D). "
-            "After listing the questions, provide the correct answers in a separate section."
-        )
-    else:  # "Regular answer"
-        tutor_goal = (
-            "Using the researcher's summary, answer the student's question clearly and directly. "
-            "Give a short explanation with enough detail to understand the key idea."
-        )
+        agents_list = [research_agent, quiz_agent]
+    else:
+        # Use TutorAgent for other modes
+        if mode == "Summary":
+            tutor_goal = (
+                "Using the researcher's summary, provide a concise summary. "
+                "Highlight 4-5 key points in bullet format."
+            )
+        elif mode == "Explanation":
+            tutor_goal = (
+                "Using the researcher's summary, explain the topic clearly for beginners. "
+                "Use simple language and define difficult terms."
+            )
+        else:  # "Regular answer"
+            tutor_goal = (
+                "Using the researcher's summary, answer the question directly and clearly. "
+                "Keep it concise but informative."
+            )
 
-    tutor_task = Task(
-        description=(
-            context_part +
-            tutor_goal +
-            f" The student's question was: '{question}'. "
-            "If there is uncertainty or missing information, state that honestly."
-        ),
-        expected_output=(
-            "An output matching the selected mode (regular answer, summary, explanation, or quiz)."
-        ),
-        agent=tutor_agent,
-    )
+        output_task = Task(
+            description=(
+                context_part +
+                tutor_goal +
+                f" Question: '{question}'. "
+            ),
+            expected_output=(
+                "Clear, concise response matching the selected mode."
+            ),
+            agent=tutor_agent,
+        )
+        agents_list = [research_agent, tutor_agent]
 
     crew = Crew(
-        agents=[research_agent, tutor_agent],
-        tasks=[research_task, tutor_task],
+        agents=agents_list,
+        tasks=[research_task, output_task],
         process=Process.sequential,
         verbose=True,
+        max_rpm=10,  # Limit requests per minute
     )
 
     result = crew.kickoff()
