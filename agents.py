@@ -1,8 +1,6 @@
-from typing import Tuple, Optional
-
 from crewai import Agent, Task, Crew, Process, LLM
-from tools.history_tool import search_history
-
+from tools.wiki_tool import search_tool as wikipedia_search_tool
+from typing import Tuple, Optional
 
 def build_llm() -> LLM:
     """
@@ -32,11 +30,10 @@ def build_agents(llm: LLM) -> Tuple[Agent, Agent]:
             "You are a careful historian specializing in World War II. "
             "You search trusted course notes (via tools) and produce concise, factual summaries."
         ),
-        tools=[search_history],  # our custom doc-retrieval tool
+        tools=[wikipedia_search_tool],  # <-- currently only local
         llm=llm,
         verbose=True,
     )
-
     tutor_agent = Agent(
         name="TutorAgent",
         role="History Tutor",
