@@ -7,12 +7,12 @@ from agents import build_llm, build_agents, answer_question
 def main():
     load_dotenv()
 
-    groq_key = os.getenv("OPENAI_API_KEY")
-    if not groq_key:
+    openai_key = os.getenv("OPENAI_API_KEY")
+    if not openai_key:
         print("[ERROR] OPENAI_API_KEY is not set. Please create a .env file based on .env.example.")
         return
 
-    print("Initializing LLM and agents (CrewAI + Groq)...")
+    print("Initializing LLM and agents (CrewAI + OpenAI)...")
     llm = build_llm()
     tutor_agent, research_agent, quiz_agent = build_agents(llm)
 
