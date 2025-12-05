@@ -1,0 +1,31 @@
+# --- Python ---
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# --- Virtual environment ---
+.venv/
+venv/
+ENV/
+env/
+
+# --- Environment variables (secrets) ---
+.env
+*.env
+
+# --- Streamlit ---
+.streamlit/
+**/.streamlit/
+
+# --- CrewAI / LangChain temp files ---
+*.log
+cache/
+logs/
+
+# --- OS files ---
+.DS_Store
+Thumbs.db
+
+# --- VSCode ---
+.vscode/
