@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 # Multi-Agent WW2 Tutor (CrewAI + Groq)
 
 Basic example project:
@@ -28,3 +29,12 @@ Then ask things like:
 - Explain the causes of World War II
 - What was D-Day?
 - What were the Axis and the Allies?
+=======
+🎖️ World War 2 Assistent
+
+
+👥 Team:
+- Natan Wojtowicz
+- Tuur Mentens
+- Tijl Cleynhens
+>>>>>>> 7e8ac4cf1bbb8e5e761367016c952d811f4f0bdc
