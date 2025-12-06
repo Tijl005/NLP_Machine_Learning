@@ -1,4 +1,5 @@
 crewai
 python-dotenv
+google-search-results
 wikipedia
 streamlit

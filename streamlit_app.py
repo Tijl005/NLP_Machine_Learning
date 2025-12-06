@@ -1,87 +1,126 @@
 import streamlit as st
 from dotenv import load_dotenv
-
 from agents import build_llm, build_agents, answer_question
 
-# Load .env (so OPENAI_API_KEY is available)
+# Load environment variables
 load_dotenv()
 
-# --- Build LLM and agents on each rerun (lightweight enough) ---
+# Page configuration
+st.set_page_config(
+    page_title="WW2 History Tutor",
+    page_icon="🎖️",
+    layout="centered"
+)
 
+# Custom CSS for Dark Theme and Modern UI
+st.markdown("""
+    <style>
+    /* Force Dark Theme style */
+    .stApp {
+        background-color: #0E1117;
+        color: #FAFAFA;
+    }
+    
+    /* Clean up the sidebar */
+    section[data-testid="stSidebar"] {
+        background-color: #262730;
+    }
+    
+    /* Enhance Markdown headers */
+    h1, h2, h3 {
+        color: #E0E0E0 !important;
+    }
+    
+    /* Adjust chat messages for better contrast if needed, 
+       though native st.chat_message handles this well usually. */
+       
+    </style>
+""", unsafe_allow_html=True)
+
+# Initialize LLM and Agents
+# Using cache_resource to avoid reloading the LLM on every rerun if possible,
+# strictly speaking the original code rebuilt them every time. 
+# We'll keep the rebuilding logic simple for now as per original design.
 llm = build_llm()
-tutor_agent, research_agent = build_agents(llm)
+tutor_agent, research_agent, quiz_agent = build_agents(llm)
 
-# --- Initialize session state for chat + mode ---
-
+# Session State Initialization
 if "chat_history" not in st.session_state:
-    st.session_state.chat_history = []  # list of (role, content)
-if "user_input" not in st.session_state:
-    st.session_state.user_input = ""
+    st.session_state.chat_history = []  # List of tuples: (role, content, mode)
+
 if "mode" not in st.session_state:
     st.session_state.mode = "Regular answer"
 
-# --- Callback for the Ask button ---
+# --- Sidebar Controls ---
+with st.sidebar:
+    st.header("⚙️ Settings")
+    
+    st.session_state.mode = st.radio(
+        "Response Mode:",
+        ["Regular answer", "Summary", "Explanation", "Quiz"],
+        help="Choose how the AI should respond to your questions."
+    )
+    
+    st.divider()
+    
+    if st.button("🗑️ Clear Chat", type="primary", use_container_width=True):
+        st.session_state.chat_history = []
+        st.rerun()
+    
+    st.markdown("---")
+    st.caption("Powered by CrewAI & GPT-4")
 
-def handle_ask():
-    question = st.session_state.user_input.strip()
-    if not question:
-        return
+# --- Main Interface ---
 
-    # 1) store user message
-    st.session_state.chat_history.append(("user", question))
+st.title("🎖️ World War II Tutor")
 
-    # 2) build a short text version of recent conversation
-    history_lines = []
-    for role, content in st.session_state.chat_history[-6:]:  # last 6 messages
-        prefix = "User" if role == "user" else "Assistant"
-        history_lines.append(f"{prefix}: {content}")
-    history_text = "\n".join(history_lines)
+# Display Chat History
+# If usage is new, show a welcome message (but keep it simple)
+if not st.session_state.chat_history:
+    st.info("👋 Welcome! Ask any question about World War II to get started.")
 
-    # 3) get current mode
-    mode = st.session_state.mode  # "Regular answer", "Summary", "Explanation", "Quiz"
+for role, content, mode_used in st.session_state.chat_history:
+    with st.chat_message(role):
+        st.markdown(content)
+        if role == "assistant" and mode_used != "Regular answer":
+            st.caption(f"Mode: {mode_used}")
 
-    # 4) call the multi-agent pipeline
-    with st.spinner("Thinking..."):
-        try:
-            answer = answer_question(
-                question,
-                tutor_agent,
-                research_agent,
-                history=history_text,
-                mode=mode,
-            )
-        except Exception as e:
-            answer = f"Error while generating answer: {e}"
-
-    # 5) store assistant answer
-    st.session_state.chat_history.append(("assistant", answer))
-
-    # 6) clear the input for the next turn
-    st.session_state.user_input = ""
-
-
-# --- UI ---
-
-st.title("🪖 World War II History Tutor")
-st.write("Ask anything about World War II (causes, events, key figures, consequences).")
-
-# Mode selector
-st.selectbox(
-    "Response type:",
-    ["Regular answer", "Summary", "Explanation", "Quiz"],
-    key="mode",
-)
-
-# Show chat history
-for role, content in st.session_state.chat_history:
-    if role == "user":
-        st.markdown(f"**You:** {content}")
-    else:
-        st.markdown(f"**Assistant:** {content}")
-
-# Input at the bottom
-st.text_input("Your question:", key="user_input")
-
-col1, col2 = st.columns([1, 4])
-with col1:
-    st.button("Ask", on_click=handle_ask)
+# Chat Input
+if prompt := st.chat_input("Ask a question (e.g., 'What happened on D-Day?')..."):
+    # 1. Display User Message
+    st.chat_message("user").markdown(prompt)
+    
+    # 2. Add to history
+    current_mode = st.session_state.mode
+    st.session_state.chat_history.append(("user", prompt, current_mode))
+    
+    # 3. Generate Answer
+    with st.chat_message("assistant"):
+        with st.spinner("Analyzing history books..."):
+            try:
+                # Construct history string for context
+                # Take last few turns to maintain context for follow-up questions
+                history_lines = []
+                for r, c, m in st.session_state.chat_history[-6:]:
+                    prefix = "User" if r == "user" else "Assistant"
+                    history_lines.append(f"{prefix}: {c}")
+                history_text = "\n".join(history_lines)
+                
+                response = answer_question(
+                    prompt,
+                    tutor_agent,
+                    research_agent,
+                    quiz_agent,
+                    history=history_text,
+                    mode=current_mode,
+                )
+                
+                st.markdown(response)
+                if current_mode != "Regular answer":
+                    st.caption(f"Mode: {current_mode}")
+                
+                # 4. Add Assistant response to history
+                st.session_state.chat_history.append(("assistant", response, current_mode))
+                
+            except Exception as e:
+                st.error(f"An error occurred: {str(e)}")
