@@ -1,7 +1,7 @@
 from typing import Tuple, Optional, Union
 
 from crewai import Agent, Task, Crew, Process, LLM
-from tools.history_tool import search_history
+from tools.wiki_tool import search_tool as wikipedia_search_tool
 from tools.serpapi_tool import search_online
 
 
@@ -27,19 +27,18 @@ def build_agents(llm: LLM) -> Tuple[Agent, Agent, Agent]:
         role="WW2 Researcher",
         goal=(
             "Efficiently find accurate information about World War II using available tools. "
-            "Prioritize local history notes first, only use online search when necessary."
+            "Use Wikipedia or online search to find reliable information."
         ),
         backstory=(
             "You are a careful historian specializing in World War II. "
-            "You search trusted course notes first, and only use online resources when "
-            "local information is insufficient. You are efficient and avoid unnecessary searches."
+            "You use Wikipedia and global online search to gather accurate facts. "
+            "You are efficient and verify information across sources when possible."
         ),
-        tools=[search_history, search_online],
+        tools=[wikipedia_search_tool, search_online],
         llm=llm,
         verbose=True,
         max_iter=3,  # Limit iterations to reduce API calls
     )
-
     tutor_agent = Agent(
         name="TutorAgent",
         role="History Tutor",
@@ -87,7 +86,7 @@ def answer_question(
     """
     Run an efficient crew to answer a single user question.
 
-    - ResearchAgent uses tools efficiently (local first, online if needed)
+    - ResearchAgent uses tools efficiently (Wikipedia + Online)
     - TutorAgent or QuizAgent produces the final output based on mode
 
     history: a short text representation of the recent conversation.
@@ -105,8 +104,8 @@ def answer_question(
             context_part +
             "Research the question efficiently: "
             f"'{question}'. "
-            "IMPORTANT: First check local history notes. Only use online search if local notes "
-            "don't provide sufficient information. "
+            "Use Wikipedia or online search to gather info. "
+            "Choose the most appropriate tool for the query. "
             "Summarize findings in 5-6 concise bullet points (max 20 words each)."
         ),
         expected_output=(
@@ -174,3 +173,4 @@ def answer_question(
 
     result = crew.kickoff()
     return str(result)
+
