@@ -3,3 +3,4 @@ python-dotenv
 google-search-results
 wikipedia
 streamlit
+chromadb
