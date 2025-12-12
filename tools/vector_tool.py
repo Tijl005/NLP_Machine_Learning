@@ -2,45 +2,74 @@ import os
 import chromadb
 from chromadb.utils import embedding_functions
 from crewai.tools import tool
+from docling.document_converter import DocumentConverter
+import tempfile
 
-# Pad naar je data
+# Configuratie
 BASE_DIR = os.path.dirname(os.path.dirname(__file__))
-DATA_PATH = os.path.join(BASE_DIR, "data", "ww2_history_notes.txt")
 DB_PATH = os.path.join(BASE_DIR, "data", "vector_db")
 
-# Setup ChromaDB (de vector database)
+# Setup ChromaDB
 client = chromadb.PersistentClient(path=DB_PATH)
-# We gebruiken de standaard embedding functie (kan ook OpenAI zijn voor betere resultaten)
-ef = embedding_functions.DefaultEmbeddingFunction() 
+ef = embedding_functions.DefaultEmbeddingFunction()
 collection = client.get_or_create_collection(name="ww2_knowledge", embedding_function=ef)
 
-def _init_db():
-    """Lees het tekstbestand en vul de database als deze leeg is."""
-    if collection.count() > 0:
-        return # DB is al gevuld
+def add_document_to_knowledge_base(file_obj, filename):
+    """
+    Verwerkt een geüpload bestand (PDF, DOCX, TXT) en voegt het toe aan de vector DB.
+    """
+    try:
+        chunks = []
+        suffix = os.path.splitext(filename)[1].lower()
 
-    if not os.path.exists(DATA_PATH):
-        print(f"Waarschuwing: {DATA_PATH} niet gevonden.")
-        return
+        # 1. OPTIE A: Simpele tekstbestanden (.txt) direct lezen
+        if suffix == '.txt':
+            try:
+                # Streamlit file_obj is bytes, dus decoderen naar string
+                text = file_obj.getvalue().decode("utf-8")
+                # Splitsen op dubbele enters
+                chunks = [p.strip() for p in text.split("\n\n") if p.strip()]
+            except Exception as e:
+                return False, f"Kon tekstbestand niet lezen (encoding fout?): {str(e)}"
 
-    with open(DATA_PATH, "r", encoding="utf-8") as f:
-        text = f.read()
-    
-    # Simpele split op lege regels (paragrafen)
-    paragraphs = [p.strip() for p in text.split("\n\n") if p.strip()]
-    
-    # Voeg toe aan ChromaDB
-    ids = [f"id_{i}" for i in range(len(paragraphs))]
-    collection.add(documents=paragraphs, ids=ids)
-    print(f"Vector Database gevuld met {len(paragraphs)} items.")
+        # 2. OPTIE B: Complexe bestanden (PDF/DOCX) via Docling
+        else:
+            # Tijdelijk bestand aanmaken omdat Docling een pad nodig heeft
+            with tempfile.NamedTemporaryFile(delete=False, suffix=suffix) as tmp_file:
+                tmp_file.write(file_obj.getvalue())
+                tmp_path = tmp_file.name
 
-# Initialiseer de DB bij het starten
-_init_db()
+            try:
+                converter = DocumentConverter()
+                result = converter.convert(tmp_path)
+                markdown_text = result.document.export_to_markdown()
+                chunks = [p.strip() for p in markdown_text.split("\n\n") if p.strip()]
+            finally:
+                # Altijd het tijdelijke bestand opruimen
+                if os.path.exists(tmp_path):
+                    os.remove(tmp_path)
+        
+        # Check of we tekst hebben gevonden
+        if not chunks:
+            return False, "Geen leesbare tekst gevonden in document."
+
+        # 3. Toevoegen aan ChromaDB
+        current_count = collection.count()
+        # Unieke ID's maken op basis van bestandsnaam en tijd/index
+        ids = [f"{filename}_{current_count + i}" for i in range(len(chunks))]
+        metadatas = [{"source": filename} for _ in chunks]
+        
+        collection.add(documents=chunks, ids=ids, metadatas=metadatas)
+        
+        return True, f"Succesvol {len(chunks)} fragmenten toegevoegd uit {filename}."
+
+    except Exception as e:
+        return False, f"Fout bij verwerken document: {str(e)}"
 
 @tool("search_history_vector")
 def search_history_vector(query: str) -> str:
     """
-    Search the WW2 history notes using a Vector Database for semantic similarity.
+    Search the WW2 history notes and uploaded documents using a Vector Database.
     Useful for finding specific facts, events, or explanations in the knowledge base.
     """
     results = collection.query(
@@ -48,8 +77,8 @@ def search_history_vector(query: str) -> str:
         n_results=3
     )
     
-    if not results["documents"]:
+    # Check of er resultaten zijn
+    if not results["documents"] or not results["documents"][0]:
         return "No relevant information found in the notes."
         
-    # Combineer de top 3 gevonden stukjes tekst
     return "\n\n".join(results["documents"][0])

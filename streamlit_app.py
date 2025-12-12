@@ -2,6 +2,10 @@ import streamlit as st
 from dotenv import load_dotenv
 from agents import build_llm, build_agents, answer_question
 
+# NIEUWE IMPORTS voor document- en beeldverwerking
+from tools.vector_tool import add_document_to_knowledge_base
+from tools.vision_tool import analyze_image
+
 # Load environment variables
 load_dotenv()
 
@@ -31,16 +35,12 @@ st.markdown("""
         color: #E0E0E0 !important;
     }
     
-    /* Adjust chat messages for better contrast if needed, 
-       though native st.chat_message handles this well usually. */
-       
+    /* Adjust chat messages for better contrast if needed */
     </style>
 """, unsafe_allow_html=True)
 
 # Initialize LLM and Agents
-# Using cache_resource to avoid reloading the LLM on every rerun if possible,
-# strictly speaking the original code rebuilt them every time. 
-# We'll keep the rebuilding logic simple for now as per original design.
+# Using cache_resource to avoid reloading the LLM on every rerun if possible
 llm = build_llm()
 tutor_agent, research_agent, quiz_agent = build_agents(llm)
 
@@ -62,22 +62,74 @@ with st.sidebar:
     )
     
     st.divider()
+
+    # --- NIEUW: FILE UPLOAD SECTIE ---
+    st.subheader("📂 Upload Files")
+    
+    # 1. Document Upload (RAG met Docling)
+    uploaded_doc = st.file_uploader(
+        "Add Knowledge Doc (PDF, DOCX, TXT)", 
+        type=['pdf', 'docx', 'txt'],
+        key="doc_uploader"
+    )
+    
+    if uploaded_doc is not None:
+        if st.button("📄 Process Document", use_container_width=True):
+            with st.spinner("Reading document with Docling..."):
+                # We roepen de functie aan die we in vector_tool.py hebben gemaakt
+                success, message = add_document_to_knowledge_base(uploaded_doc, uploaded_doc.name)
+                if success:
+                    st.success(message)
+                else:
+                    st.error(message)
+
+    st.markdown("---")
+
+    # 2. Image Upload (Vision met GPT-4o)
+
+    st.subheader("🖼️ Upload Images")
+
+    uploaded_img = st.file_uploader(
+        "Identify Image (PNG, JPG)", 
+        type=['png', 'jpg', 'jpeg'],
+        key="img_uploader"
+    )
+    
+    if uploaded_img is not None:
+        st.image(uploaded_img, caption="Preview", use_column_width=True)
+        
+        if st.button("👁️ Analyze Image", use_container_width=True):
+            with st.spinner("Analyzing image..."):
+                # We roepen de functie aan die we in vision_tool.py hebben gemaakt
+                description = analyze_image(uploaded_img)
+                
+                st.info(f"**Analysis:** {description}")
+                
+                # Belangrijk: Voeg de analyse toe aan de chatgeschiedenis
+                # Zodat de agents weten waarover gepraat wordt in vervolgvragen
+                st.session_state.chat_history.append(
+                    ("assistant", f"*[System Note: I analyzed an uploaded image. Description: {description}]*", "Vision Analysis")
+                )
+                
+                # Herlaad de pagina om de geschiedenis te updaten
+                st.rerun()
+
+    st.divider()
     
     if st.button("🗑️ Clear Chat", type="primary", use_container_width=True):
         st.session_state.chat_history = []
         st.rerun()
     
     st.markdown("---")
-    st.caption("Powered by CrewAI & GPT-4")
+    st.caption("Powered by CrewAI, Docling & GPT-4o")
 
 # --- Main Interface ---
 
 st.title("🎖️ World War II Tutor")
 
 # Display Chat History
-# If usage is new, show a welcome message (but keep it simple)
 if not st.session_state.chat_history:
-    st.info("👋 Welcome! Ask any question about World War II to get started.")
+    st.info("👋 Welcome! Ask any question about World War II, or upload a document/image in the sidebar.")
 
 for role, content, mode_used in st.session_state.chat_history:
     with st.chat_message(role):
@@ -103,6 +155,7 @@ if prompt := st.chat_input("Ask a question (e.g., 'What happened on D-Day?')..."
                 history_lines = []
                 for r, c, m in st.session_state.chat_history[-6:]:
                     prefix = "User" if r == "user" else "Assistant"
+                    # Filter out system notes if needed, but usually helpful for context
                     history_lines.append(f"{prefix}: {c}")
                 history_text = "\n".join(history_lines)
                 
