@@ -3,6 +3,7 @@ from typing import Tuple, Optional, Union
 from crewai import Agent, Task, Crew, Process, LLM
 from tools.wiki_tool import search_tool as wikipedia_search_tool
 from tools.serpapi_tool import search_online
+from tools.vector_tool import search_history_vector
 
 
 def build_llm() -> LLM:
@@ -27,18 +28,22 @@ def build_agents(llm: LLM) -> Tuple[Agent, Agent, Agent]:
         role="WW2 Researcher",
         goal=(
             "Efficiently find accurate information about World War II using available tools. "
-            "Use Wikipedia or online search to find reliable information."
+            "Prioritize local history notes (vector DB) before searching online."
         ),
         backstory=(
             "You are a careful historian specializing in World War II. "
-            "You use Wikipedia and global online search to gather accurate facts. "
+            "You first check your local knowledge base (vector tool) for specific notes. "
+            "If the information is missing there, you use Wikipedia or global search. "
             "You are efficient and verify information across sources when possible."
         ),
-        tools=[wikipedia_search_tool, search_online],
+        # [NIEUW] Voeg search_history_vector toe aan de lijst.
+        # De agent kan nu kiezen: lokale notities, Wikipedia of Google.
+        tools=[search_history_vector, wikipedia_search_tool, search_online],
         llm=llm,
         verbose=True,
         max_iter=3,  # Limit iterations to reduce API calls
     )
+
     tutor_agent = Agent(
         name="TutorAgent",
         role="History Tutor",
@@ -86,7 +91,7 @@ def answer_question(
     """
     Run an efficient crew to answer a single user question.
 
-    - ResearchAgent uses tools efficiently (Wikipedia + Online)
+    - ResearchAgent uses tools efficiently (Vector DB + Wikipedia + Online)
     - TutorAgent or QuizAgent produces the final output based on mode
 
     history: a short text representation of the recent conversation.
@@ -104,8 +109,8 @@ def answer_question(
             context_part +
             "Research the question efficiently: "
             f"'{question}'. "
-            "Use Wikipedia or online search to gather info. "
-            "Choose the most appropriate tool for the query. "
+            "First check the 'search_history_vector' tool for local notes. "
+            "If insufficient, use Wikipedia or online search. "
             "Summarize findings in 5-6 concise bullet points (max 20 words each)."
         ),
         expected_output=(
@@ -169,8 +174,8 @@ def answer_question(
         process=Process.sequential,
         verbose=True,
         max_rpm=10,  # Limit requests per minute
+        memory=True, # [NIEUW] Activeer Long Term Memory / Short Term Memory
     )
 
     result = crew.kickoff()
     return str(result)
-
