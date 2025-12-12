@@ -5,7 +5,6 @@ from crewai.tools import tool
 from docling.document_converter import DocumentConverter
 import tempfile
 
-# Configuratie
 BASE_DIR = os.path.dirname(os.path.dirname(__file__))
 DB_PATH = os.path.join(BASE_DIR, "data", "vector_db")
 
@@ -16,25 +15,22 @@ collection = client.get_or_create_collection(name="ww2_knowledge", embedding_fun
 
 def add_document_to_knowledge_base(file_obj, filename):
     """
-    Verwerkt een geüpload bestand (PDF, DOCX, TXT) en voegt het toe aan de vector DB.
+    Process an uploaded file (PDF, DOCX, TXT) and add it to the vector database.
     """
     try:
         chunks = []
         suffix = os.path.splitext(filename)[1].lower()
 
-        # 1. OPTIE A: Simpele tekstbestanden (.txt) direct lezen
+        # Simple text files (.txt) - read directly
         if suffix == '.txt':
             try:
-                # Streamlit file_obj is bytes, dus decoderen naar string
                 text = file_obj.getvalue().decode("utf-8")
-                # Splitsen op dubbele enters
                 chunks = [p.strip() for p in text.split("\n\n") if p.strip()]
             except Exception as e:
-                return False, f"Kon tekstbestand niet lezen (encoding fout?): {str(e)}"
+                return False, f"Could not read text file (encoding error?): {str(e)}"
 
-        # 2. OPTIE B: Complexe bestanden (PDF/DOCX) via Docling
+        # Complex files (PDF/DOCX) - process with Docling
         else:
-            # Tijdelijk bestand aanmaken omdat Docling een pad nodig heeft
             with tempfile.NamedTemporaryFile(delete=False, suffix=suffix) as tmp_file:
                 tmp_file.write(file_obj.getvalue())
                 tmp_path = tmp_file.name
@@ -45,26 +41,23 @@ def add_document_to_knowledge_base(file_obj, filename):
                 markdown_text = result.document.export_to_markdown()
                 chunks = [p.strip() for p in markdown_text.split("\n\n") if p.strip()]
             finally:
-                # Altijd het tijdelijke bestand opruimen
                 if os.path.exists(tmp_path):
                     os.remove(tmp_path)
-        
-        # Check of we tekst hebben gevonden
-        if not chunks:
-            return False, "Geen leesbare tekst gevonden in document."
 
-        # 3. Toevoegen aan ChromaDB
+        if not chunks:
+            return False, "No readable text found in document."
+
+        # Add to ChromaDB
         current_count = collection.count()
-        # Unieke ID's maken op basis van bestandsnaam en tijd/index
         ids = [f"{filename}_{current_count + i}" for i in range(len(chunks))]
         metadatas = [{"source": filename} for _ in chunks]
-        
+
         collection.add(documents=chunks, ids=ids, metadatas=metadatas)
-        
-        return True, f"Succesvol {len(chunks)} fragmenten toegevoegd uit {filename}."
+
+        return True, f"Successfully added {len(chunks)} chunks from {filename}."
 
     except Exception as e:
-        return False, f"Fout bij verwerken document: {str(e)}"
+        return False, f"Error processing document: {str(e)}"
 
 @tool("search_history_vector")
 def search_history_vector(query: str) -> str:
@@ -76,9 +69,8 @@ def search_history_vector(query: str) -> str:
         query_texts=[query],
         n_results=3
     )
-    
-    # Check of er resultaten zijn
+
     if not results["documents"] or not results["documents"][0]:
         return "No relevant information found in the notes."
-        
+
     return "\n\n".join(results["documents"][0])
