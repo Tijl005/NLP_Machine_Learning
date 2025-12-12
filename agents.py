@@ -3,7 +3,6 @@ from typing import Tuple, Optional, Union
 from crewai import Agent, Task, Crew, Process, LLM
 from tools.wiki_tool import search_tool as wikipedia_search_tool
 from tools.serpapi_tool import search_online
-# [NIEUW] Importeer de vector tool (zorg dat je tools/vector_tool.py hebt aangemaakt)
 from tools.vector_tool import search_history_vector
 
 
