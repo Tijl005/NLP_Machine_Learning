@@ -4,13 +4,12 @@ import os
 
 def analyze_image(uploaded_file):
     """
-    Stuurt een afbeelding naar GPT-4o voor analyse.
+    Send an image to GPT-4.1-mini for analysis.
     """
     client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
-    # Encode afbeelding naar base64
     bytes_data = uploaded_file.getvalue()
-    base64_image = base64.b64encode(bytes_data).decode('utf-8')
+    base64_image = base64.b64encode(bytes_data).decode("utf-8")
 
     try:
         response = client.chat.completions.create(
@@ -19,7 +18,7 @@ def analyze_image(uploaded_file):
                 {
                     "role": "user",
                     "content": [
-                        {"type": "text", "text": "Wat staat er op deze afbeelding? Als het een historisch voertuig of object uit WO2 is, identificeer het specifiek (bijv. 'Panzer II'). Geef een korte beschrijving."},
+                        {"type": "text", "text": "What is shown in this image? If it is a historical vehicle or object from WW2, identify it specifically (e.g., 'Panzer II'). Provide a brief description."},
                         {
                             "type": "image_url",
                             "image_url": {
@@ -33,4 +32,4 @@ def analyze_image(uploaded_file):
         )
         return response.choices[0].message.content
     except Exception as e:
-        return f"Kon afbeelding niet analyseren: {str(e)}"
+        return f"Could not analyze image: {str(e)}"

@@ -36,8 +36,6 @@ def build_agents(llm: LLM) -> Tuple[Agent, Agent, Agent]:
             "If the information is missing there, you use Wikipedia or global search. "
             "You are efficient and verify information across sources when possible."
         ),
-        # [NIEUW] Voeg search_history_vector toe aan de lijst.
-        # De agent kan nu kiezen: lokale notities, Wikipedia of Google.
         tools=[search_history_vector, wikipedia_search_tool, search_online],
         llm=llm,
         verbose=True,
@@ -174,7 +172,7 @@ def answer_question(
         process=Process.sequential,
         verbose=True,
         max_rpm=10,  # Limit requests per minute
-        memory=True, # [NIEUW] Activeer Long Term Memory / Short Term Memory
+        memory=True,  # Required for NLP challenge: enables Long Term Memory / Short Term Memory
     )
 
     result = crew.kickoff()

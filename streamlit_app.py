@@ -1,8 +1,6 @@
 import streamlit as st
 from dotenv import load_dotenv
 from agents import build_llm, build_agents, answer_question
-
-# NIEUWE IMPORTS voor document- en beeldverwerking
 from tools.vector_tool import add_document_to_knowledge_base
 from tools.vision_tool import analyze_image
 
@@ -63,20 +61,18 @@ with st.sidebar:
     
     st.divider()
 
-    # --- NIEUW: FILE UPLOAD SECTIE ---
     st.subheader("📂 Upload Files")
     
-    # 1. Document Upload (RAG met Docling)
+    # Document Upload (RAG with Docling)
     uploaded_doc = st.file_uploader(
-        "Add Knowledge Doc (PDF, DOCX, TXT)", 
+        "Add Knowledge Doc (PDF, DOCX, TXT)",
         type=['pdf', 'docx', 'txt'],
         key="doc_uploader"
     )
-    
+
     if uploaded_doc is not None:
         if st.button("📄 Process Document", use_container_width=True):
             with st.spinner("Reading document with Docling..."):
-                # We roepen de functie aan die we in vector_tool.py hebben gemaakt
                 success, message = add_document_to_knowledge_base(uploaded_doc, uploaded_doc.name)
                 if success:
                     st.success(message)
@@ -85,8 +81,7 @@ with st.sidebar:
 
     st.markdown("---")
 
-    # 2. Image Upload (Vision met GPT-4o)
-
+    # Image Upload (Vision with GPT-4.1-mini)
     st.subheader("🖼️ Upload Images")
 
     uploaded_img = st.file_uploader(
@@ -100,18 +95,15 @@ with st.sidebar:
         
         if st.button("👁️ Analyze Image", use_container_width=True):
             with st.spinner("Analyzing image..."):
-                # We roepen de functie aan die we in vision_tool.py hebben gemaakt
                 description = analyze_image(uploaded_img)
-                
+
                 st.info(f"**Analysis:** {description}")
-                
-                # Belangrijk: Voeg de analyse toe aan de chatgeschiedenis
-                # Zodat de agents weten waarover gepraat wordt in vervolgvragen
+
+                # Add analysis to chat history so agents can reference it in follow-up questions
                 st.session_state.chat_history.append(
                     ("assistant", f"*[System Note: I analyzed an uploaded image. Description: {description}]*", "Vision Analysis")
                 )
-                
-                # Herlaad de pagina om de geschiedenis te updaten
+
                 st.rerun()
 
     st.divider()
@@ -150,12 +142,10 @@ if prompt := st.chat_input("Ask a question (e.g., 'What happened on D-Day?')..."
     with st.chat_message("assistant"):
         with st.spinner("Analyzing history books..."):
             try:
-                # Construct history string for context
-                # Take last few turns to maintain context for follow-up questions
+                # Construct history string from last 6 turns for context
                 history_lines = []
                 for r, c, m in st.session_state.chat_history[-6:]:
                     prefix = "User" if r == "user" else "Assistant"
-                    # Filter out system notes if needed, but usually helpful for context
                     history_lines.append(f"{prefix}: {c}")
                 history_text = "\n".join(history_lines)
                 
